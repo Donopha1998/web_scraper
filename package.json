@@ -1,0 +1,24 @@
+{
+  "name": "crawling_api",
+  "version": "1.0.0",
+  "description": "Web crawling api",
+  "main": "dist/index.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc",
+    "preserve": "npm run build",
+    "serve": "concurrently \"tsc --watch\" \"nodemon -q dist/index.js\"",
+    "prestart": "npm run build",
+    "start": "node dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "concurrently": "^9.1.2",
+    "dotenv": "^16.4.7",
+    "playwright": "^1.51.1",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14"
+  }
+}
