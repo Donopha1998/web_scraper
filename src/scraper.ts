@@ -1,10 +1,21 @@
 import { Page } from 'playwright';
 
-export async function fetchOrders(page: Page, orderUrl: string): Promise<any[]> {
+export async function fetchOrders(page: Page, orderUrl: string, reLogin: () => Promise<boolean>): Promise<any[]> {
   try {
     await page.goto(orderUrl);
 
-    await page.waitForSelector('.a-fixed-left-grid-col.a-col-right');
+    // Check if redirected to the login page
+    if (page.url().includes('signin')) {
+      console.log('Detected login page during fetchOrders. Attempting re-login...');
+      const loginSuccess = await reLogin();
+      if (!loginSuccess) {
+        console.error('Re-login failed. Cannot fetch orders.');
+        return [];
+      }
+      await page.goto(orderUrl);
+    }
+
+    await page.waitForSelector('.a-fixed-left-grid-col.a-col-right', { timeout: 30000 });
 
     // Extract order details
     const orders = await page.evaluate(() => {
@@ -18,7 +29,7 @@ export async function fetchOrders(page: Page, orderUrl: string): Promise<any[]> 
 
         orderList.push({
           name: productName,
-          link: `https://www.amazon.in${productLink}`
+          link: productLink.startsWith('http') ? productLink : `https://www.amazon.in${productLink}`
         });
       });
 
