@@ -1,33 +1,67 @@
 import { chromium } from 'playwright';
 import { fillInputWithVerification } from './utils';
 import { fetchOrders } from './scraper';
-import { askQuestion, closeInput } from './input';
+import { askQuestion, closeInput, intValidationQuestion } from './input';
 import { LOGIN_URL, ORDER_URL } from './constants';
+import * as fs from 'fs';
+import { searchAmazon } from './search';
+
+let isLoggedInState = false;
+let savedUsername = '';
+let savedPassword = '';
 
 if (!LOGIN_URL) {
   console.error('LOGIN_URL is missing in .env file');
   process.exit(1);
 }
 
-async function login(page: any, username: string, password: string): Promise<boolean> {
+async function login(page: any): Promise<boolean> {
   try {
+    if (isLoggedInState) {
+      console.log('User already logged in.');
+      return true;
+    }
+
+    const isLoggedIn = await page.evaluate(() => !!document.querySelector('#nav-orders, #nav-link-accountList'));
+
+    if (isLoggedIn) {
+      console.log('User is already logged in.');
+      isLoggedInState = true;
+      return true;
+    }
+
+    if (!savedUsername || !savedPassword) {
+      savedUsername = await askQuestion('Enter your Amazon email or phone number: ');
+      savedPassword = await askQuestion('Enter your Amazon password: ', true);
+    }
+
     await page.goto(LOGIN_URL);
 
-    await page.waitForSelector('#ap_email_login, #ap_email', { state: 'visible', timeout: 30000 });
-    await fillInputWithVerification(page, '#ap_email_login, #ap_email', username);
-    await page.click('#continue');
+    console.log('Login successful. Please handle OTP manually if prompted.');
+
+    const isEmailPrefilled = await page.evaluate(() => {
+      const emailInput = document.querySelector('#ap_email_login, #ap_email') as HTMLInputElement | null;
+      return emailInput && emailInput.value.trim().length > 0;
+    });
+
+    if (!isEmailPrefilled) {
+      await page.waitForSelector('#ap_email_login, #ap_email', { state: 'visible', timeout: 30000 });
+      await fillInputWithVerification(page, '#ap_email_login, #ap_email', savedUsername);
+      await page.click('#continue');
+    }
 
     await page.waitForSelector('#ap_password', { state: 'visible', timeout: 30000 });
-    await fillInputWithVerification(page, '#ap_password', password);
+    await fillInputWithVerification(page, '#ap_password', savedPassword);
 
-    await Promise.all([
+  await Promise.all([
       page.waitForNavigation({ waitUntil: 'networkidle' }),
       page.click('#signInSubmit'),
     ]);
 
+ 
+
     console.log('Login successful. Please handle OTP manually if prompted.');
 
-    // Handle OTP/MFA
     const otpFieldSelector = 'input[name="otpCode"], input[id="auth-mfa-otpcode"]';
     const isOTPVisible = await page.waitForSelector(otpFieldSelector, { state: 'visible', timeout: 10000 }).catch(() => null);
 
@@ -67,46 +101,45 @@ async function login(page: any, username: string, password: string): Promise<boo
 
 async function main() {
   try {
-    const username = await askQuestion('Enter your Amazon email or phone number: ');
-    const password = await askQuestion('Enter your Amazon password: ', true);
+    const userDataDir = './user-data';
 
-    closeInput();
-
-    const browser = await chromium.launch({ headless: false });
-    const context = await browser.newContext();
-    const page = await context.newPage();
-
-    const isLoggedIn = await login(page, username, password);
-    if (!isLoggedIn) {
-      console.error('Login failed. Please check your credentials or complete any manual verification.');
-      await browser.close();
-      return;
+    if (!fs.existsSync(userDataDir)) {
+      fs.mkdirSync(userDataDir);
     }
 
-    console.log('Login successful.');
+    const browserContext = await chromium.launchPersistentContext(userDataDir, { headless: false });
+    console.log('Using persistent browser context with user data.');
+    const page = await browserContext.newPage();
 
-    // Fetch orders
-    const orders = await fetchOrders(page, ORDER_URL, async () => await login(page, username, password));
-    console.log('Fetched Orders:', JSON.stringify(orders, null, 2));
+    const choice = await askQuestion('Would you like to (1) View your orders or (2) Search for products? Enter 1 or 2: ');
 
-    let orderArray = [];
-    for (const order of orders) {
-      if (order.link) {
-        try {
-          console.log(`Visiting order: ${order.link}`);
-          await page.goto(order.link);
+    if (choice === '1') 
+      {
+        const ordersCount = await intValidationQuestion('How many last orders you want to crawl: ');
 
-          const productPrice = await page.textContent('.a-price-whole, .a-color-price').catch(() => 'Unknown');
-          const productLink = await page.url();
 
-          orderArray.push({ name: order.name, productPrice, productLink });
-        } catch (error) {
-          console.error(`Failed to fetch details for order: ${order.link}`, error);
-        }
-      }
+        const orders = await fetchOrders(page, ORDER_URL, async () => await login(page),ordersCount);
+        console.log('Fetched Orders:', JSON.stringify(orders, null, 2));
+     
+    } else if (choice === '2') {
+      const searchString = await askQuestion('Enter your search string: ');
+      console.log('Select a filter:');
+      console.log('1. Price: Low to High');
+      console.log('2. Price: High to Low');
+      console.log('3. Avg. Customer Reviews');
+      console.log('4. Newest Arrivals');
+      console.log('5. Best Sellers');
+      const filterChoice:number = await intValidationQuestion('Enter the number of your filter choice: ');
+
+      if(filterChoice > 5) return  console.log('Invalid choice. Please enter the correct value.');
+
+      const filterOptions = ['Price: Low to High', 'Price: High to Low', 'Avg. Customer Reviews', 'Newest Arrivals', 'Best Sellers'];
+      const filterOption = filterOptions[filterChoice - 1] || 'Price: Low to High';
+
+      await searchAmazon(page, searchString, filterOption);
+    } else {
+      console.log('Invalid choice. Please enter 1 or 2.');
     }
-
-    console.log(orderArray);
   } catch (error) {
     console.error('Error:', error);
     closeInput();

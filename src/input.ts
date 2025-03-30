@@ -40,3 +40,18 @@ export function askQuestion(query: string, isPassword = false): Promise<string> 
 export function closeInput(): void {
   rl.close();
 }
+
+
+
+export function intValidationQuestion(question: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    rl.question(question, (answer) => {
+      const parsedAnswer = parseInt(answer, 10);
+      if (isNaN(parsedAnswer) || parsedAnswer <= 0) {
+        reject(new Error('Invalid input. Please enter a valid integer greater than 0.'));
+      } else {
+        resolve(parsedAnswer);
+      }
+    });
+  });
+}
