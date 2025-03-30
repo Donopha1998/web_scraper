@@ -15,10 +15,13 @@
     "concurrently": "^9.1.2",
     "dotenv": "^16.4.7",
     "playwright": "^1.51.1",
+    "playwright-cluster": "^1.0.7",
     "rimraf": "^6.0.1",
     "typescript": "^5.8.2"
   },
   "devDependencies": {
-    "@types/node": "^22.13.14"
+    "@types/node": "^22.13.14",
+    "ts-node-dev": "^2.0.0",
+    "tsconfig-paths": "^4.2.0"
   }
 }
