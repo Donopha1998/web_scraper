@@ -124,8 +124,8 @@ async function fetchOrderDetails(page:any,orders: any[]): Promise<any[]> {
 
       fs.writeFileSync('new_one.html',await page.content())
 
-     const productPriceWhole = await page.textContent('.a-price-whole, .a-color-price').catch(() => 'Unknown');
-     const productPriceFraction = await page.textContent('.a-price-fraction').catch(() => '00');
+      const productPriceWhole = await page.textContent('.a-price-symbol + .a-price-whole, .a-color-price').catch(() => 'Unknown');
+      const productPriceFraction = await page.textContent('.a-price-fraction').catch(() => '00');
      const productPrice = `${productPriceWhole}${productPriceFraction}`.trim() || 'Unknown';
 
       const productLink = await page.url();

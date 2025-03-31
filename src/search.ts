@@ -22,7 +22,6 @@ export async function searchAmazon(page: any, searchString: string, filterOption
       await page.goto(`${currentUrl}${filterUrl}`);
     }
 
-    await page.waitForSelector('.a-size-medium.a-spacing-none.a-color-base.a-text-normal', { timeout: 30000 });
     await page.waitForTimeout(3000);
 
     const sections = await page.$$('.s-main-slot div[data-component-type="s-search-result"]');
@@ -30,14 +29,17 @@ export async function searchAmazon(page: any, searchString: string, filterOption
 
     for (const section of sections) {
       const nameElement = await section.$('.a-size-medium.a-spacing-none.a-color-base.a-text-normal');
-      const priceElement = await section.$('span.a-price-whole');
+      const priceElement = await section.$('.a-price-symbol + .a-price-whole, .a-color-price') || await section.$('a-color-base');
       const fractionElement = await section.$('span.a-price-fraction');
-      const linkElement = await section.$('a.a-link-normal.s-link-style');
+      const linkElement = await section.$('a.a-link-normal');
+      
 
       if (!nameElement || !linkElement) continue;
 
+
+
       const name = await nameElement.textContent() || 'Unknown';
-      const priceWhole = priceElement ? (await priceElement.textContent() || 'Unknown') : 'Unknown';
+      const priceWhole = priceElement ? (await priceElement.textContent() || 'Not Found') : 'Not Found';
       const priceFraction = fractionElement ? (await fractionElement.textContent() || '') : '';
       const price = `${priceWhole}${priceFraction}`.trim();
       const link = `https://www.amazon.in${await linkElement.getAttribute('href')}`;
